@@ -1,0 +1,8 @@
+google-genai
+python-dotenv
+pytest
+rich
+pydantic
+fastapi
+uvicorn
+jinja2
