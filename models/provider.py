@@ -48,8 +48,8 @@ class ModelProvider:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                # Add a delay for free tier rate limits (RPM is very low)
-                time.sleep(10)
+                # 15s delay ensures max 4 RPM (Free tier is often 5 RPM)
+                time.sleep(15)
                 
                 response = self.client.models.generate_content(
                     model=model_name,
@@ -64,14 +64,17 @@ class ModelProvider:
                     
                 return response.text
             except Exception as e:
-                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                error_msg = str(e)
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
                     wait_time = 30 * (attempt + 1)
-                    print(f"!!! QUOTA EXCEEDED !!! Retrying in {wait_time} seconds... (Attempt {attempt+1}/{max_retries})")
+                    print(f"\n[QUOTA ERROR] {error_msg}")
+                    print(f"Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})\n")
                     time.sleep(wait_time)
                     continue
+                print(f"\n[UNEXPECTED ERROR] {error_msg}\n")
                 raise e
         
-        return "Error: Maximum retries reached due to quota exhaustion."
+        return f"Error: Maximum retries reached. Last error: {error_msg}"
 
     def get_metrics(self) -> Dict[str, Dict[str, int]]:
         return {

@@ -1,5 +1,6 @@
 import json
 import re
+import os
 from typing import List, Dict, Any
 from models.provider import ModelProvider
 from tools.context_processor import ContextProcessor
@@ -16,26 +17,24 @@ class LargeModelAgent:
         self.test_tool = TestTool()
         
         self.system_instruction = (
-            "You are an advanced coding agent with FULL SYSTEM ACCESS to the current directory.\n"
-            "CRITICAL: If the user asks to create, modify, or delete a file, you MUST use the corresponding tool.\n"
-            "DO NOT just output the code in your response; you must actually WRITE the file using 'write_file'.\n\n"
+            "You are an advanced coding agent with FULL SYSTEM ACCESS.\n"
+            "CRITICAL: To create or modify files, you MUST use the 'write_file' tool.\n"
+            "DO NOT simply show the code in your response. You must EXECUTE the tool.\n\n"
             "Tools available:\n"
-            "1. search(pattern, path): Search for text.\n"
-            "2. read_file(file_path, query): Read a file with context optimization.\n"
-            "3. write_file(file_path, content): Create or overwrite a file. CRITICAL: Use this to apply changes!\n"
-            "4. run_tests(path): Run tests.\n"
-            "5. list_files(path): List contents of a directory.\n"
-            "6. context_processor(operation, query, content): Process large data.\n\n"
-            "Workflow:\n"
-            "- First, use 'list_files' to understand the structure.\n"
-            "- Use 'read_file' or 'search' to find relevant code.\n"
-            "- Use 'write_file' to apply changes. You can use this multiple times.\n"
-            "- Finally, use 'run_tests' to verify.\n\n"
-            "Format your response as:\n"
+            "1. search(pattern, path)\n"
+            "2. read_file(file_path, query)\n"
+            "3. write_file(file_path, content)\n"
+            "4. run_tests(path)\n"
+            "5. list_files(path)\n"
+            "6. context_processor(operation, query, content)\n\n"
+            "To use a tool, you MUST use this exact JSON format:\n"
             "THOUGHT: <your reasoning>\n"
-            "ACTION: <tool_name>(<arguments>)\n"
-            "or\n"
-            "FINAL_ANSWER: <your summary of actions taken>"
+            "ACTION: {\"tool\": \"tool_name\", \"args\": [\"arg1\", \"arg2\"]}\n\n"
+            "Example:\n"
+            "THOUGHT: I need to create a hello world file.\n"
+            "ACTION: {\"tool\": \"write_file\", \"args\": [\"hello.py\", \"print('hello')\"]}\n\n"
+            "After every tool call, wait for the OBSERVATION. Once finished, use:\n"
+            "FINAL_ANSWER: <summary of actions taken>"
         )
 
     def run_task(self, task_description: str) -> str:
@@ -50,30 +49,21 @@ class LargeModelAgent:
             if "FINAL_ANSWER:" in response:
                 return response
                 
-            # Parse action
-            action_match = re.search(r"ACTION: (\w+)\((.*)\)", response)
+            # Parse action (JSON format)
+            action_match = re.search(r"ACTION: (\{.*\})", response)
             if action_match:
-                tool_name = action_match.group(1)
-                args_str = action_match.group(2)
-                
-                # Log action to console for debugging
-                print(f"DEBUG: Agent calling tool {tool_name} with args {args_str[:100]}...")
-                
                 try:
-                    # Simple argument parsing (could be improved)
-                    # Handle quoted strings and escaped characters better
-                    if args_str.startswith("["):
-                        args = json.loads(args_str)
-                    else:
-                        # Extract arguments between quotes
-                        args = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'|([^,\s]+)', args_str)
-                        args = [a[0] or a[1] or a[2] for a in args]
+                    action_json = json.loads(action_match.group(1))
+                    tool_name = action_json.get("tool")
+                    args = action_json.get("args", [])
+                    
+                    print(f"DEBUG: Agent calling tool {tool_name} with {len(args)} args...")
                     
                     observation = self.execute_tool(tool_name, args)
-                    print(f"DEBUG: Tool {tool_name} returned: {str(observation)[:100]}...")
+                    print(f"DEBUG: Tool {tool_name} returned successfully.")
                     history.append(f"OBSERVATION: {observation}")
                 except Exception as e:
-                    print(f"DEBUG: Tool {tool_name} error: {str(e)}")
+                    print(f"DEBUG: Action parsing error: {str(e)}")
                     history.append(f"OBSERVATION ERROR: {str(e)}")
             else:
                 history.append("OBSERVATION: No valid ACTION found. Please specify an ACTION or FINAL_ANSWER.")

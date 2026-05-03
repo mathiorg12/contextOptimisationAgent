@@ -66,10 +66,11 @@ async def execute_agent_comparison(task_id: str, task_desc: str):
             "success": "FINAL_ANSWER" in baseline_output
         })
     except Exception as e:
+        print(f"BASELINE ERROR: {str(e)}")
         results.append({"mode": "Baseline", "error": str(e)})
 
-    # Wait a bit between runs to refresh quota
-    await asyncio.sleep(5)
+    # Wait a bit between runs to refresh quota (Free tier needs time)
+    await asyncio.sleep(60)
 
     # Run Optimised
     task_status[task_id]["status"] = "running optimised"
@@ -88,6 +89,7 @@ async def execute_agent_comparison(task_id: str, task_desc: str):
             "success": "FINAL_ANSWER" in optimised_output
         })
     except Exception as e:
+        print(f"OPTIMISED ERROR: {str(e)}")
         results.append({"mode": "Optimised", "error": str(e)})
 
     task_status[task_id]["status"] = "completed"
