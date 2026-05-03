@@ -49,7 +49,7 @@ class ModelProvider:
         for attempt in range(max_retries):
             try:
                 # Add a delay for free tier rate limits (RPM is very low)
-                time.sleep(5)
+                time.sleep(10)
                 
                 response = self.client.models.generate_content(
                     model=model_name,
@@ -65,8 +65,9 @@ class ModelProvider:
                 return response.text
             except Exception as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    print(f"Quota exceeded. Retrying in 15 seconds... (Attempt {attempt+1}/{max_retries})")
-                    time.sleep(15)
+                    wait_time = 30 * (attempt + 1)
+                    print(f"!!! QUOTA EXCEEDED !!! Retrying in {wait_time} seconds... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait_time)
                     continue
                 raise e
         
