@@ -1,8 +1,20 @@
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any
+
 from models.provider import ModelProvider
+from utils.logger import get_logger
+
+log = get_logger(__name__)
+
 
 class ContextProcessor:
+    """
+    Small-model context compressor.
+
+    Routes large file content through gemini-flash-lite-latest to extract
+    only the relevant snippets before passing them to the large model.
+    """
+
     def __init__(self, provider: ModelProvider):
         self.provider = provider
         self.system_instruction = (
@@ -14,15 +26,30 @@ class ContextProcessor:
             "- Always return a structured JSON response.\n"
             "- Focus on relevant functions, error messages, or logic snippets."
         )
+        log.debug("[ContextProcessor] Initialised.")
 
-    def process(self, operation: str, query: str, content: str, constraints: Dict[str, Any] = None) -> Dict[str, Any]:
+    def process(
+        self,
+        operation: str,
+        query: str,
+        content: str,
+        constraints: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
         """
         operation: summarize | extract | rank | compress
+        Returns a dict with keys: summary, key_points, relevant_snippets, confidence
         """
+        log.info(
+            "[ContextProcessor] process — op=%s  query=%s  content_len=%d",
+            operation,
+            query[:80],
+            len(content),
+        )
+
         prompt = f"""
 Operation: {operation}
 Query/Intent: {query}
-Constraints: {json.dumps(constraints or {{}})}
+Constraints: {json.dumps(constraints or {})}
 
 Content to process:
 ---
@@ -42,23 +69,33 @@ Return your response in the following JSON format:
   "confidence": 0.9
 }}
 """
-        response_text = self.provider.call("small", prompt, system_instruction=self.system_instruction)
-        
-        # Simple JSON extraction from response
+        response_text = self.provider.call(
+            "small", prompt, system_instruction=self.system_instruction
+        )
+
+        log.debug("[ContextProcessor] Raw response:\n%s", response_text[:400])
+
         try:
-            # Look for JSON block if model wrapped it in markdown
             if "```json" in response_text:
                 json_str = response_text.split("```json")[1].split("```")[0].strip()
             elif "{" in response_text:
-                json_str = response_text[response_text.find("{"):response_text.rfind("}")+1]
+                json_str = response_text[response_text.find("{") : response_text.rfind("}") + 1]
             else:
                 json_str = response_text
-                
-            return json.loads(json_str)
+
+            result = json.loads(json_str)
+            log.info(
+                "[ContextProcessor] Parsed OK — confidence=%.2f  snippets=%d",
+                result.get("confidence", 0),
+                len(result.get("relevant_snippets", [])),
+            )
+            return result
+
         except Exception as e:
+            log.error("[ContextProcessor] JSON parse error: %s", e, exc_info=True)
             return {
                 "summary": "Error parsing small model output",
                 "error": str(e),
                 "raw_output": response_text[:500],
-                "confidence": 0.0
+                "confidence": 0.0,
             }

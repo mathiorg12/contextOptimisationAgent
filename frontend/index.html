@@ -3,70 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Context-Optimised Agent | Dashboard</title>
+    <title>Context Optimisation Agent | Benchmark Dashboard</title>
+    <meta name="description" content="Dual-model AI coding agent benchmark: Large-Only vs Planner+Executor. Compare token usage, latency, and file creation side-by-side.">
     <link rel="stylesheet" href="/static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Background grid -->
+    <div class="bg-grid" aria-hidden="true"></div>
+
     <div class="container">
-        <header>
-            <h1>Context-Optimised Agent</h1>
-            <p style="color: var(--text-muted)">Minimizing reasoning tokens through dual-model orchestration</p>
+        <!-- Header -->
+        <header class="site-header">
+            <div class="header-badge">⚡ Dual-Model Benchmark</div>
+            <h1>Context Optimisation Agent</h1>
+            <p class="header-sub">
+                Approach 1: <strong>Large-Only</strong> vs Approach 2: <strong>Planner (large) + Executor (small)</strong>
+                — both create real files locally. Compare token usage, latency, and success.
+            </p>
         </header>
 
-        <main class="glass-card">
-            <div class="input-group">
-                <textarea id="taskInput" placeholder="Describe the coding task (e.g., 'Fix the bug in bug_fix/utils.py')"></textarea>
-                <button id="runBtn">Run Analysis</button>
+        <!-- Task Input -->
+        <section class="glass-card input-section" id="inputSection">
+            <label for="taskInput" class="input-label">Coding Task</label>
+            <div class="input-row">
+                <textarea
+                    id="taskInput"
+                    placeholder="e.g. Create a Python file called hello.py that prints 'Hello, World!' and a README.md describing it"
+                    rows="3"
+                ></textarea>
+                <button id="runBtn" onclick="startTask()">
+                    <span class="btn-icon">▶</span>
+                    Run Benchmark
+                </button>
             </div>
+            <p class="input-hint">Both approaches will execute your task locally. Files are saved to <code>output/baseline/</code> and <code>output/optimised/</code>.</p>
+        </section>
 
-            <div id="statusArea" style="display: none;">
-                <div class="status-indicator">
-                    <div class="dot"></div>
-                    <span id="statusText">Processing task...</span>
+        <!-- Status bar -->
+        <div id="statusBar" class="status-bar hidden">
+            <div class="status-pulse"></div>
+            <span id="statusText">Initialising...</span>
+            <span id="statusTimer" class="status-timer">0s</span>
+        </div>
+
+        <!-- Results -->
+        <section id="resultsSection" class="hidden">
+
+            <!-- Hero metrics -->
+            <div class="hero-metrics" id="heroMetrics">
+                <div class="hero-card" id="heroA1">
+                    <div class="hero-label">Approach 1 — Large Only</div>
+                    <div class="hero-model">gemini-flash-latest (all steps)</div>
+                    <div class="hero-value" id="a1TotalTokens">—</div>
+                    <div class="hero-sub">total tokens</div>
+                    <div class="hero-pills">
+                        <span class="pill pill-in" id="a1InTok">in: —</span>
+                        <span class="pill pill-out" id="a1OutTok">out: —</span>
+                        <span class="pill pill-time" id="a1Wall">⏱ —</span>
+                        <span class="pill pill-calls" id="a1Calls">calls: —</span>
+                    </div>
+                    <div class="hero-status" id="a1Status">—</div>
+                </div>
+                <div class="vs-divider">VS</div>
+                <div class="hero-card" id="heroA2">
+                    <div class="hero-label">Approach 2 — Planner + Executor</div>
+                    <div class="hero-model">large plans · small executes</div>
+                    <div class="hero-value" id="a2TotalTokens">—</div>
+                    <div class="hero-sub">total tokens</div>
+                    <div class="hero-pills">
+                        <span class="pill pill-in" id="a2LargeTok">large: —</span>
+                        <span class="pill pill-out" id="a2SmallTok">small: —</span>
+                        <span class="pill pill-time" id="a2Wall">⏱ —</span>
+                        <span class="pill pill-calls" id="a2Calls">calls: —</span>
+                    </div>
+                    <div class="hero-status" id="a2Status">—</div>
                 </div>
             </div>
 
-            <div id="resultsArea" style="display: none;">
-                <div class="dashboard">
-                    <div class="metric-card">
-                        <div class="metric-header">Baseline Tokens (Single Model)</div>
-                        <div class="metric-value" id="baseTokens">0</div>
-                        <div style="color: var(--text-muted)">Total tokens used by Large Model</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-header">Optimised Tokens (Dual Model)</div>
-                        <div class="metric-value" id="optTokens">0</div>
-                        <div class="reduction-badge" id="reductionLabel">0% Reduction</div>
-                    </div>
-                </div>
+            <!-- Winner banner -->
+            <div id="winnerBanner" class="winner-banner hidden"></div>
 
-                <div style="margin-top: 3rem;">
-                    <h3>Comparative Metrics</h3>
-                    <table class="comparison-table">
+            <!-- Detailed benchmark table -->
+            <div class="glass-card table-section">
+                <h2 class="section-title">📊 Benchmark Breakdown</h2>
+                <div class="table-scroll">
+                    <table class="bench-table" id="benchTable">
                         <thead>
                             <tr>
-                                <th>Mode</th>
-                                <th>Large Model Tokens</th>
-                                <th>Small Model Tokens</th>
-                                <th>Success Rate</th>
-                                <th>Outcome</th>
+                                <th>Metric</th>
+                                <th>Approach 1<br><small>Large Only</small></th>
+                                <th>Approach 2<br><small>Planner + Executor</small></th>
+                                <th>Δ Difference</th>
                             </tr>
                         </thead>
-                        <tbody id="comparisonBody">
-                            <!-- Injected by JS -->
+                        <tbody id="benchBody">
+                            <!-- injected by JS -->
                         </tbody>
                     </table>
                 </div>
+            </div>
 
-                <div id="reportArea" style="margin-top: 3rem; display: none;">
-                    <h3>Final Outcome Reasoning</h3>
-                    <div id="outcomeText" style="white-space: pre-wrap; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.9rem;"></div>
+            <!-- Files created -->
+            <div class="files-grid">
+                <div class="glass-card file-card" id="filesA1">
+                    <h3 class="section-title">📁 Files Created — Approach 1</h3>
+                    <ul class="file-list" id="fileListA1"><li class="file-empty">No files yet</li></ul>
+                </div>
+                <div class="glass-card file-card" id="filesA2">
+                    <h3 class="section-title">📁 Files Created — Approach 2</h3>
+                    <ul class="file-list" id="fileListA2"><li class="file-empty">No files yet</li></ul>
                 </div>
             </div>
-        </main>
+
+            <!-- Output panels -->
+            <div class="output-grid">
+                <div class="glass-card output-card">
+                    <h3 class="section-title">🤖 Approach 1 Output</h3>
+                    <pre class="output-pre" id="outputA1">—</pre>
+                </div>
+                <div class="glass-card output-card">
+                    <h3 class="section-title">🧠 Approach 2 Output</h3>
+                    <pre class="output-pre" id="outputA2">—</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live log panel -->
+        <section class="glass-card log-section" id="logSection">
+            <div class="log-header">
+                <h3 class="section-title" style="margin:0">🪵 Live Agent Log</h3>
+                <div class="log-controls">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="autoScrollLog" checked>
+                        Auto-scroll
+                    </label>
+                    <button class="btn-sm" onclick="clearLogDisplay()">Clear</button>
+                </div>
+            </div>
+            <pre class="log-pre" id="logOutput">Waiting for task to start...</pre>
+        </section>
     </div>
 
     <script src="/static/script.js"></script>
