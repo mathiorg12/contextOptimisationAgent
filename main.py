@@ -126,10 +126,10 @@ async def _run_comparison(task_id: str, task_desc: str):
             "success": False,
         })
 
-    # ── Pause between runs (free-tier quota) ───────────────────────────────────
-    log.info("[Comparison] Pausing 60 s between runs to respect free-tier quota...")
-    task_registry[task_id]["status"] = "pausing between runs (60 s)"
-    await asyncio.sleep(60)
+    # ── Brief pause between runs ───────────────────────────────────────────────
+    log.info("[Comparison] Pausing 5 s between runs...")
+    task_registry[task_id]["status"] = "pausing between runs (5 s)"
+    await asyncio.sleep(5)
 
     # ── Approach 2: Dual Agent (Planner + Executor) ────────────────────────────
     task_registry[task_id]["status"] = "running: approach 2 (planner + executor)"

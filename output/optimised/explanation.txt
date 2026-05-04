@@ -1,0 +1,1 @@
+Gross Pay is calculated by prorating the base salary for days worked (30,000 * 15/30 = 15,000), and Net Pay is the Gross Pay minus a 10% tax (15,000 - 1,500).

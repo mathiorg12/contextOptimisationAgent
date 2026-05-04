@@ -87,13 +87,13 @@ class ModelProvider:
             len(prompt),
         )
 
-        max_retries = 3
+        max_retries = 5
         last_error = ""
         for attempt in range(max_retries):
             try:
-                # 15 s delay → max ~4 RPM (Free tier is 5 RPM)
-                log.debug("Rate-limit delay: sleeping 15 s before API call (attempt %d/%d)", attempt + 1, max_retries)
-                time.sleep(15)
+                # No proactive sleep — only delay on actual 429 errors below.
+                # Gemini free-tier is 15 RPM for flash and 30 RPM for flash-lite;
+                # real API latency (~2-10 s/call) keeps us well under the limit.
 
                 t0 = time.perf_counter()
                 response = self.client.models.generate_content(
@@ -151,13 +151,14 @@ class ModelProvider:
             except Exception as e:
                 last_error = str(e)
                 if "429" in last_error or "RESOURCE_EXHAUSTED" in last_error:
-                    wait_time = 30 * (attempt + 1)
+                    # Exponential backoff: 5 s, 10 s, 20 s, 40 s, 80 s
+                    wait_time = 5 * (2 ** attempt)
                     log.warning(
-                        "[QUOTA ERROR] attempt=%d/%d  wait=%ds  error=%s",
+                        "[QUOTA 429] attempt=%d/%d — waiting %d s before retry.  error=%s",
                         attempt + 1,
                         max_retries,
                         wait_time,
-                        last_error,
+                        last_error[:120],
                     )
                     time.sleep(wait_time)
                     continue
